@@ -1,0 +1,134 @@
+-- using COUNT in GROUP BY
+SELECT
+	COUNT(firstName) AS total_customers,
+	SUM(score) AS total_score,
+	country
+FROM sales.Customers
+GROUP BY country
+
+-- show new column
+SELECT 'hello world' AS static_value
+
+-- DDL
+CREATE TABLE persons(
+	id INT NOT NULL,
+	person_name VARCHAR(50) NOT NULL,
+	birth_date DATE,
+	phone VARCHAR(15) NOT NULL,
+	CONSTRAINT pk_persons PRIMARY KEY (id)
+)
+ALTER TABLE persons
+ADD email VARCHAR(30) NOT NULL
+ALTER TABLE persons
+DROP COLUMN email
+DROP TABLE persons
+
+-- DML
+INSERT INTO sales.customers (CustomerID, FirstName, country, score)
+VALUES(6, 'Anna', 'UK', '0'),
+(7, 'Sam', 'India', '100')
+INSERT INTO sales.customers
+VALUES(8, 'Anna', 'India', '50')
+
+SELECT * FROM sales.customers
+
+UPDATE sales.customers
+SET score = 200, lastName = 'Berry'
+WHERE customerID = 6
+
+SELECT * FROM sales.customers
+-- DELETE FROM sales.customers
+WHERE CustomerID > 7
+
+TRUNCATE TABLE persons
+DELETE FROM persons
+/* TRUNCATE removes all rows quickly 
+without logging, 
+while DELETE removes specific rows 
+with conditions and supports rollback */
+
+
+-- BETWEEN X AND Y operator
+-- Underscore in LIKE _
+
+-- Data enrichment = getting extra data from different table. INNER, LEFT
+-- Recombine data = detting extra data from here and there to have a big picture. LEFT
+-- Check existance.  INNER
+
+-- full join
+-- left anti join = left join where b.key is null
+-- full anti join = full join where b.key is null OR a.key is null
+-- inner join = left join where X is not null
+
+-- cross join = all combinations
+SELECT *
+FROM sales.customers
+CROSS JOIN sales.orders
+
+-- order by only once per query, while group by, .. can be used in many select combined with union
+-- UNION ALL doesnt remove duplicates
+-- EXCEPT not found in second query
+-- INTERSECT only common values
+
+GETDATE() today
+
+DATE(your_date)
+
+MONTH(your_date)
+
+YEAR(your_date)
+
+DATEPART(year, your_date)
+		quarter
+		hour
+		week
+
+DATENAME(month, your_date) -- > January
+DATENAME(weekday, your_date) -- > monday
+
+DATETRUNC(minute, your_time)   -> reset everything less than that
+		second
+		hour
+		day
+		month   -- day resets to 1
+		year	-- month resets to 1
+
+EOMONTH(your_date)   -- END OF MONTH: date with the last day of this month aka 2025-2-28
+
+CASE(DATETRUNC(minute, your_time) AS DATE)
+
+SELECT
+DATENAME(month, OrderDate) AS OrderDate,
+COUNT(*) AS NrOfOrders
+FROM Sales.Orders
+GROUP BY DATENAME(month, OrderDate)
+
+SELECT
+OrderDate
+FROM Sales.Orders
+
+DAY, MONTH, YEAR, DATEPART -> INT
+DATENAME -> STRING
+DATETRUNC -> DATETIME
+EOMONTH -> DATE
+
+FORMAT
+MM/dd/YY = 08/20/2025
+MMM YYYY = Aug 2025
+
+
+FORMAT(CreationTime, 'dd')		01
+FORMAT(CreationTime, 'ddd')		Wed
+FORMAT(CreationTime, 'dddd')	Wednesday
+FORMAT(CreationTime, 'MM')		01
+FORMAT(CreationTime, 'MMM')		Jan
+FORMAT(CreationTime, 'MMMM')	January
+
+FORMAT(CreationTime, 'tt')		AM/PM
+
+
+CONVERT(INT, '123')
+
+
+
+
