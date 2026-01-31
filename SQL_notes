@@ -1,3 +1,4 @@
+EXCERCISE
 -- using COUNT in GROUP BY
 SELECT
 	COUNT(firstName) AS total_customers,
@@ -128,6 +129,553 @@ FORMAT(CreationTime, 'tt')		AM/PM
 
 
 CONVERT(INT, '123')
+CAST('123' AS INT)
+
+DATEADD(year, -2, OrderDate)
+		month
+		day
+
+DATEDIFF(year, OrderDate, ShipDate)
+		month
+		day
+
+
+LAG = Access value from previous row
+LAG(OrderDate) OVER (ORDER BY OrderDate)
+
+
+ISDATE(value) returns 1 for true and 0 for false
+
+
+SELECT
+	OrderDate,
+	ISDATE(OrderDate),
+	CASE WHEN ISDATE(OrderDate) = 1 THEN CAST(OrderDate AS DATE) 
+		ELSE '9999-01-01'
+	END NewOrderDate
+	FROM(...some dates...)t
+
+
+ISNULL(value, replacement_value) -- fast but: SQL Server = ISNULL
+													Oracle = NVL
+													MySql = IFNULL
+
+COALESCE(value1, value2, value3,...) --  uporabi vrednosti ki ni null
+-- slow but available in all Databases
+
+AVG, SUM, .. ignores NULL
+COUNT doesnt ignore NULL
+
+
+SELECT 
+	CustomerID,
+	Score,
+	AVG(Score) OVER() AvgScores,
+	AVG(COALESCE(Score, 0)) OVER() AvgScore2
+FROM Sales.Customers
+
+NULL + 5 = NULL
+NULL + 'a' = NULL
+
+SELECT
+	FirstName + '' + COALESCE(LastName, '') AS FullName,
+	*,
+	COALESCE(Score, 0) + 10 AS Score2
+FROM Sales.Customers
+
+-- First sort nulls to be at the end, then ASC values
+--CASE WHEN Score IS NULL THEN 1 ELSE 0 END Flag
+ORDER BY CASE WHEN Score IS NULL THEN 1 ELSE 0 END, Score
+
+
+NULLIF(value1, value2) -- return NULl if values equal, else return value1
+
+Sales / NULLIF(Quantity, 0) AS Price -- prevent division by 0
+
+-- LEFT ANTI JOIN = LEFT JOIN + IS NULL
+SELECT
+c.*,
+o.OrderID
+FROM Sales.Customers c
+LEFT JOIN Sales.orders o
+ON c.CustomerID = o.customerID
+
+WITH Query_name AS(
+	SELECT NULL AS Subquery UNION ALL
+	SELECT ''				UNION ALL
+	SELECT ' '				UNION ALL
+	SELECT '  '
+) -- '_' and '__' is considered the same, use UNION ALL
+SELECT 
+*,
+DATALENGTH(Subquery) SubqueryLength
+FROM Query_name
+
+--		Performance,	Storage
+-- NULL =	Best,		very minimal
+-- ''	=	Fast
+-- '_'	=	Slow
+
+TRIM(Category)					AS Policy1
+NULLIF(TRIM(Category), '')		AS Policy2
+COALESCE(	NULLIF(TRIM(Category), '')	, 'unknown')	AS Policy3
+
+-- policy 2 better for storage
+-- policy 3 better for showing data to others
+
+CASE
+	WHEN condition1			 THEN result1
+	WHEN country2 = 'poland2' THEN result2
+	...
+	ELSE result -- skipable
+END
+
+CASE Country	
+	WHEN 'Germany' THEN result1
+	WHEN 'India' THEN result2
+	...
+	ELSE result -- skipable
+END
+
+-- CASE can be used anywhere, even group by
+
+
+
+SELECT 
+	CustomerID,
+	LastName,
+	Score,
+	CASE
+		WHEN Score IS NULL THEN 0
+		ELSE Score
+	END ScoreCleaned,
+	AVG(Score) OVER() AS AvgScore,
+	AVG(CASE
+			WHEN Score IS NULL THEN 0
+			ELSE Score
+		END) OVER () AvgCustomerClean
+FROM Sales.Customers
+
+
+/* --------------------------------------
+		AGGREGATE FUNC & WIN FUNC	
+   --------------------------------------
+*/
+SUM(), COUNT(), AVG()
+GROUP BY CustomerID
+
+
+COUNT, SUM, AVG, MAX, MIN, 
+ROW_NUMBER, RANK, DENSE_RANK, CUME_DIST, PERCENT_RANK, NTILE
+LEAD, LAG, FIRST_VALUE, LAST_VALUE
+
+-- win func can be only used in select and order by
+-- cannot use win func inside win func
+
+SELECT
+	Sales,
+	SUM(Sales) OVER(PARTITION BY ProductID) SumSales,
+	RANK() OVER (ORDER BY Sales DESC) RankSales,
+	SUM(Sales) OVER(ORDER BY MONTH(CreationTime)
+		ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING
+	),
+	SUM(Sales) OVER(ORDER BY MONTH(CreationTime)
+		ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+	),
+	SUM(Sales) OVER(ORDER BY MONTH(CreationTime))
+	,
+	SUM(Sales) OVER()
+FROM Sales.Orders
+
+COUNT(*)
+COUNT(Sales)
+COUNT(1)
+
+SELECT
+	OrderID,
+	OrderDate,
+	Sales,
+	--COUNT(*) OVER() TotalOrders,
+	--COUNT(1) OVER(PARTITION BY CustomerID) OrdersByCustomer
+	SUM(Sales) OVER () TotalSales,
+	CONVERT(FLOAT, Sales) / SUM(Sales) OVER (PARTITION BY Sales) * 100
+FROM Sales.Orders
+
+-- RUNNING			goes from start to finish
+-- ROLLING TOTAL	uses shifting window
+
+-- two same-valued sales are numbered one after another
+ROW_NUMBER()
+
+-- two same-ranked sales have the same rank, next standing is skipped
+RANK()
+
+-- two same-ranked sales have the same rank, next standing is counted normally
+DENSE_RANK()
+
+NTILE(2) -- numbers buckets = num of rows / num of buckets
+-- use buckets to set into groups: high, medium, low
+
+--CUME_DIST = pos of num / num of rows
+--(same values same last position value)
+
+--PERCENT_RANK = pos of num  - 1 / num of rows - 1 
+--(same values same first position value)
+
+LEAD(Sales, optionalOffset(how many rows to jump), default_value)
+LEAD(Sales, 1, NULL)
+
+LAG = LEAD negated
+LAG = get previous value
+
+SELECT
+	*, 
+	ROUND(CAST((CurrentMonthSales - PreviousMonth) AS FLOAT) / PreviousMonth *100, 1) Change
+FROM (
+	SELECT
+		MONTH(OrderDate) AS OrderMonth,
+		SUM(Sales) AS CurrentMonthSales,
+		LAG(SUM(Sales)) OVER(ORDER BY MONTH(OrderDate)) PreviousMonth
+	FROM Sales.Orders
+	GROUP BY MONTH(OrderDate)
+)t
+
+FIRST_VALUE -- always first row
+LAST_VALUE -- always same row, not last row because default is:
+--RANGE BETWEEN UNBOUNCED PRECEDING AND CURRENT ROW
+--instead of:
+--RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+
+LAST_VALUE = FIRST_VALUE with ORDER DESC
+
+DWH = special DB that collects and integrates
+data from different sources to enable analytics
+and support decision-making
+
+
+
+SELECT 
+*
+FROM INFORMATION_SCHEMA.COLUMNS
+
+-- win func can be done with subquery too
+
+non-correlated subquery = can be run seperately
+correlated subquery = works as part of main query because it is connected to main using ON a.id=b.id
+
+
+CTE + query is better than Main query + subquery
+
+
+-- Recursive CTE
+WITH Series AS(
+	-- Anchor Query
+	SELECT
+	1 AS MyNumber
+	UNION ALL
+	-- Recuresive Query
+	SELECT
+	MyNumber + 1
+	FROM Series
+	WHERE MyNumber < 20
+)
+-- Main query
+SELECT
+*
+FROM Series
+OPTION (MAXRECURSION 10)
+
+
+WITH CTE_Emp_hierarhy AS
+(
+	SELECT
+		EmployeeID,
+		FirstName,
+		ManagerID,
+		0 AS Level
+	FROM Sales.Employees
+	WHERE ManagerID IS NULL
+	UNION ALL
+	SELECT
+		e.EmployeeID,
+		e.FirstName,
+		e.ManagerID,
+		Level + 1
+	FROM Sales.Employees AS e
+	INNER JOIN CTE_Emp_hierarhy ceh
+	ON e.ManagerID = ceh.EmployeeID
+
+)
+SELECT * FROM CTE_Emp_hierarhy
+
+--IF OBJECT_ID('Sales.V_monthly_summary', 'V') IS NOT NULL
+	--DROP VIEW Sales.V_monthly_summary
+--GO
+--CREATE VIEW Sales.V_monthly_summary AS
+CREATE OR REPLACE VIEW Sales.V_monthly_summary AS
+(
+	SELECT
+	DATENAME(MONTH, OrderDate) OrderMonth,
+	SUM(Sales) TotalSales,
+	COUNT(OrderID) AS TotalOrders
+	FROM Sales.Orders
+	GROUP BY DATENAME(MONTH, OrderDate)
+)
+SELECT
+*
+FROM
+Sales.V_monthly_summary
+
+--DROP VIEW Sales.V_monthly_summary
+
+
+--MySQL, Postgres, Oracle:
+CREATE TABLE NAME AS(
+	SELECT ...
+	FROM  ...
+	WHERE ...
+)
+
+--SqlServer:
+SELECT *
+INTO new_tabel
+FROM ...
+WHERE ...
+
+
+
+
+IF OBJECT_ID('Sales.MontlyOrders', 'U') IS NOT NULL
+	DROP TABLE Sales.MonthlyOrders
+	GO
+	SELECT ....
+
+
+-- temp table. ttl = session
+SELECT
+*
+INTO #Orders
+FROM Sales.Orders
+
+---------------------------------
+-- PROCEDURES
+---------------------------------
+CREATE PROCEDURE ProcedureName AS
+BEGIN
+--SQL Query
+END
+EXEC ProcedureName
+
+CREATE OR ALTER PROCEDURE TestProc AS
+BEGIN
+	SELECT TOP 1 CustomerID FROM Sales.Orders
+END
+EXEC TestProc
+
+
+ALTER PROCEDURE TestProc @Country NVARCHAR(50) = 'USA' 
+AS
+BEGIN
+	
+	DECLARE @TotalCustomers INT, @AvgScore FLOAT
+
+	
+	IF EXISTS(SELECT 1 FROM Sales.Customers WHERE Score IS NULL AND Country = 'Germany')
+		BEGIN
+		PRINT('Updating NULL Scores to 0')
+			UPDATE Sales.Customers
+			SET Score = 0
+			WHERE Score IS NULL AND Country = @Country
+		END
+	ELSE
+		BEGIN
+			PRINT('No NULL Scores found')
+		END
+
+
+	-- Report
+	SELECT
+		@TotalCustomers = COUNT(*),
+		@AvgScore = AVG(Score)
+	FROM Sales.Customers
+	WHERE Country = @Country;
+
+	PRINT 'Great Success ' + @Country + ' : ' + CAST(@TotalCustomers AS NVARCHAR)
+END
+EXEC TestProc @Country = 'Germany'
+EXEC TestProc @Country = 'USA'
+
+
+
+BEGIN TRY
+	...
+END TRY
+BEGIN CATCH
+	PRINT(ERROR_MESSAGE()) 
+	PRINT(CAST(ERROR_NUMBER() AS NVARCHAR)) 
+	PRINT(CAST(ERROR_LINE()	AS NVARCHAR)
+	PRINT(ERROR_PROCEDURE()	AS NVARCHAR)
+END CATCH
+
+
+CREATE TRIGGER TriggerName ON TableName
+AFTER INSERT, UPDATE, DELETE
+BEGIN
+	...
+END
+
+
+
+CREATE TABLE Sales.EmployeeLogs(
+	LogID INT IDENTITY(1,1) PRIMARY KEY, -- IDENTITY(1,1) = autoincrementing, starting at 1, step by 1
+	EmployeeID INT,
+	LogMessage VARCHAR(255),
+	LogDate DATE
+)
+
+
+CREATE TRIGGER trg_AfterInsertEmployee ON Sales.Employees
+AFTER INSERT
+AS
+BEGIN
+	INSERT INTO Sales.EmployeeLogs(EmployeeID, LogMessage, LogDate)
+	SELECT 
+		EmployeeID,
+		'New employee added = ' + CAST(EmployeeID AS VARCHAR),
+		GETDATE()
+	FROM INSERTED -- virtual table holding copy of rows being insert into target table, a.k.a Sales.Employees
+END
+
+INSERT INTO Sales.Employees
+VALUES(6, 'Maria', 'Doe', 'HR', '1988-01-12', 'F', 80000, 3)
+
+SELECT * FROM Sales.EmployeeLogs
+
+
+-- Clustered index
+	--physically sorts and stores rows
+	--one index per table
+	--faster read
+	--slower write
+	--storage.efficient
+		--unique column
+		--improve range query performace
+		--not frequently modified column
+
+-- Non-clustered index
+	--seperate stricture with pointers to data
+	--multiple indexes allowed
+	--slower read
+	--faster write
+	--requires additonal storage
+		--columns frequently used in search conditions and joins
+		--exact match queries
+
+-- nonclustered is a default
+CREATE [CLUSTERED | NONCLUSTERED] INDEX index_name ON table (column1 [ASC | DESC], column2, ..)
+
+
+--PK automatically creates clustered index
+
+SELECT *
+INTO Sales.DBCustomers
+FROM Sales.Customers
+
+-- Now Sales.DBCustomers is a heap strcutre with an index
+
+CREATE CLUSTERED INDEX idx_DBCustomers_CustomerID
+ON Sales.DBCustomers (CustomerID)
+
+-- Cannot create more than 1 clustered index per table
+
+DROP INDEX idx_DBCustomers_CustomerID ON Sales.DBCustomers
+
+-- If index uses (Country, Score)
+-- query must be:
+-- WHERE Country = 'USA' AND Score > 500
+-- not:
+-- WHERE Score > 500 AND Country = 'USA'
+
+--Index uses leftmost prefex role so searching by
+-- WHERE Country = 'USA' only does use index search
+
+
+--rowstore index
+	--less efficient in storage
+	--fair speed for read/write
+	--lower IO efficiency (retrives all columns)
+	--OLTP(Transactional) (commerce, banking, financial systems, order processing)
+	--quick access to complete records
+	--high frequency transaction applications
+
+--columnstore index
+	--highly efficient with compression
+	--fast read, slow write
+	--higher IO efficiency (retrives specific columns)
+	--OLAP(Analytical) (DWH, BI, Reporting, Analytics)
+
+CREATE [CLUSTERED | NONCLUSTERED] [COLUMNSTORE] INDEX index_name
+--Default is ROWSTORE
+-- rowstore: specify on which columns there is an index
+-- columnstore: dont specify any column
+
+
+CREATE CLUSTERED COLUMNSTORE INDEX idx_DBCustomers_CS
+ON Sales.DBCustomers
+
+--on columnstore index per table, and one has to decide to make it clustered or nonclustered
+
+DROP INDEX idx_DBCustomers_CS ON Sales.DBCustomers
+
+CREATE UNIQUE [CLUSTERED | NONCLUSTERED] COLUMNSTORE INDEX index_name
+-- default is non unique
+
+
+--Cant use filtered index on columnstore or clustered index
+CREATE NONCLUSTERED INDEX inx_Customers_Country
+ON Sales.Customers (Country)
+WHERE Country = 'USA'
+
+
+--HEAP
+--no index
+--fast inserts
+--unimportant tables 
+
+--CLUSTERED INDEX
+--PK or date column
+--OLTP
+
+--COLUMNSTORE INDEX
+--big comlex analytical queries with data aggregations
+--compresses data and reduces table size
+--OLAP
+
+--NONCLUSTERED INDEX
+--non PK columns
+--FK, joins, filters
+
+--FILTERED INDEX
+--target subset to reduce size
+
+--UNIQUE INDEX
+--data uniqueness
+--improved query speed slightly because when record found it returns it
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
