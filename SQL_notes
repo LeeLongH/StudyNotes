@@ -663,6 +663,194 @@ WHERE Country = 'USA'
 --improved query speed slightly because when record found it returns it
 
 
+--List all indexes on a specific table
+sp_helpindex 'Sales.DBCustomers'
+
+SELECT * FROM sys.indexes
+
+SELECT 
+	tbl.name AS tableName,
+	idx.name AS indexName, 
+	idx.type_desc AS indexType ,
+	idx.is_primary_key AS isPrimaryKey,
+	idx.is_unique AS isUnique,
+	idx.is_disabled AS isDisabled,
+	s.user_seeks,
+	s.user_scans,
+	s.user_lookups,
+	s.user_updates,
+	COALESCE( s.last_user_seek, s.last_user_scan)
+FROM sys.indexes idx
+JOIN sys.tables tbl
+ON idx.object_id = tbl.object_id
+LEFT JOIN sys.dm_db_index_usage_stats s
+ON s.object_id = idx.index_id
+ORDER BY tbl.name, idx.name
+
+--DMV (Dynamic Management View)
+SELECT * FROM sys.dm_db_index_usage_stats
+
+--in cache
+SELECT * FROM sys.dm_db_missing_index_details
+
+
+SELECT
+	tbl.name AS TableName, 
+	col.name AS IndexColumn, 
+	idx.name AS IndexName,
+	idx.type_desc AS IndexType,
+	COUNT(1) OVER (PARTITION BY tbl.name, col.name) ColumnCount  -- how many indexes per column, 1 ok
+FROM sys.indexes idx
+JOIN sys.tables tbl 
+ON idx.object_id = tbl.object_id
+JOIN sys.index_columns ic 
+ON idx.object_id = ic.object_id 
+	AND idx. index_id= ic.index_id 
+JOIN sys.columns col 
+ON ic.object_id = col.object_id 
+	AND ic.column_id = col.column_id 
+ORDER BY tbl.name, col.name
+
+
+--Montitor index usage
+--Montiro missing indexes
+--Monitor duplciate indexes
+--Update Statistics
+-- Monitor fragmentation
+
+
+SELECT
+	SCHEMA_NAME (t.schema_id) AS SchemaName, 
+	t.name AS TableName,
+	s.name AS StatisticName,
+	sp.last_updated As LastUpdate,
+	DATEDIFF (DAY, sp.last_updated, GETDATE()) AS LastUpdateDay, sp.rows AS 'Rows',
+	sp.modification_counter AS ModificationsSinceLastUpdate
+FROM sys.stats AS s
+JOIN sys.tables t
+ON s.object_id = t.object_id
+CROSS APPLY sys.dm_db_stats_properties (s.object_id, s.stats_id) AS sp
+ORDER BY sp.modification_counter DESC;
+
+UPDATE STATISTICS Sales.Orders _WA_Sys_0000000B_3B75D760;
+UPDATE STATISTICS Sales.Orders;
+EXEC sp_updatestats;
+
+--avg fragmentation in percent
+SELECT *
+FROM sys.dm_db_index_physical_stats(DB_ID(), NULL, NULL, NULL, 'LIMITED')
+--join with sys.tables and sys.indexes
+
+-- < 10% fragmentation = OK
+-- 10 - 30% fragmentation = do something
+-- > 30% fragmentation = rebuild index
+
+--reorganize
+ALTER INDEX index_name ON Sales.Customers REORGANIZE
+
+--rebuild
+ALTER INDEX index_name ON Sales.Customers REBUILD
+
+
+-- Changing execution plan 
+SELECT ...
+JOIN...
+OPTION(HASH JOIN)
+
+-- Changing how to read data
+SELECT ...
+JOIN...	WITH (FORCESEEK)
+
+SELECT ...
+JOIN...	WITH (INDEX [PK_Customer_A4AE64B87FC20A48])
+
+
+--Most important tables and columns?
+
+
+-- PARTITIONS
+
+CREATE PARTITION FUNCTION PartitionByYear (DATE)
+AS RANGE LEFT FOR VALUES('2023-12-31', '2024-12-31', '2025-12-31')
+
+SELECT
+	name,
+	function_id,
+	type,
+	type_desc,
+	boundary_value_on_right
+FROM sys.partition_functions
+
+ALTER DATABASE SalesDB ADD FILEGROUP FG_2023;
+ALTER DATABASE SalesDB ADD FILEGROUP FG_2024;
+ALTER DATABASE SalesDB ADD FILEGROUP FG_2025;
+ALTER DATABASE SalesDB ADD FILEGROUP FG_2026;
+
+ALTER DATABASE SalesDB REMOVE FILEGROUP FG_2023;
+
+SELECT *
+FROM sys.filegroups
+WHERE type = 'FG'
+
+ALTER DATABASE SalesDB ADD FILE
+(
+	NAME = P_2023, -- Logical Name
+	FILENAME = 'C:\Program Files\Microsoft SQL Server\MSSQL16.MSSQLSERVER\MSSQL\DATA\P_2023.ndf'
+) TO FILEGROUP FG_2023
+
+ALTER DATABASE SalesDB ADD FILE
+(
+	NAME = P_2024, -- Logical Name
+	FILENAME = 'C:\Program Files\Microsoft SQL Server\MSSQL16.MSSQLSERVER\MSSQL\DATA\P_2024.ndf'
+) TO FILEGROUP FG_2024
+
+ALTER DATABASE SalesDB ADD FILE
+(
+	NAME = P_2025, -- Logical Name
+	FILENAME = 'C:\Program Files\Microsoft SQL Server\MSSQL16.MSSQLSERVER\MSSQL\DATA\P_2025.ndf'
+) TO FILEGROUP FG_2025
+
+ALTER DATABASE SalesDB ADD FILE
+(
+	NAME = P_2026, -- Logical Name
+	FILENAME = 'C:\Program Files\Microsoft SQL Server\MSSQL16.MSSQLSERVER\MSSQL\DATA\P_2026.ndf'
+) TO FILEGROUP FG_2026
+
+SELECT
+	fg.name AS FileGroupName,
+	mf.name AS LogicalFileName,
+	mf.physical_name AS PhysicalFileName,
+	mf.size / 128 AS SizeInMB
+FROM sys.filegroups fg
+JOIN sys.master_files mf ON fg.data_space_id = mf.data_space_id
+WHERE mf.database_id = DB_ID('SalesDB');
+
+CREATE PARTITION SCHEME SchemeParititonByYear
+AS PARTITION PartitionByYear
+TO (FG_2023, FG_2024, FG_2025, FG_2026)
+
+
+CREATE TABLE Sales.Orders_Partitioned
+(
+	OrderID INT,
+	OrderDate DATE,
+	Sales INT
+) ON SchemePartitionByYear (OrderDate)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
