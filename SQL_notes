@@ -825,11 +825,12 @@ FROM sys.filegroups fg
 JOIN sys.master_files mf ON fg.data_space_id = mf.data_space_id
 WHERE mf.database_id = DB_ID('SalesDB');
 
-CREATE PARTITION SCHEME SchemeParititonByYear
+CREATE PARTITION SCHEME SchemePartitionByYear
 AS PARTITION PartitionByYear
 TO (FG_2023, FG_2024, FG_2025, FG_2026)
 
-
+--DROP PARTITION SCHEME SchemeParitionByYear
+	
 CREATE TABLE Sales.Orders_Partitioned
 (
 	OrderID INT,
@@ -838,33 +839,81 @@ CREATE TABLE Sales.Orders_Partitioned
 ) ON SchemePartitionByYear (OrderDate)
 
 
+INSERT INTO Sales.Orders_Partitioned
+VALUES (1, '2023-05-15', 100),
+		(2, '2024-05-15', 50)
+
+SELECT * FROM Sales.Orders_Partitioned
+
+
+SELECT
+	p.partition_number AS PartitionNumber,
+	f.name AS PartitionFileGroup,
+	p.rows AS NumberOfRows
+FROM sys.partitions p
+JOIN sys.destination_data_spaces dds
+ON p.partition_number = dds.destination_id
+JOIN sys.filegroups f
+ON dds.data_space_id = f.data_space_id
+WHERE OBJECT_NAME(p.object_id) = 'Orders_Partitioned'
 
 
 
+-- create nonclustered insex for frequently used columns in WHERE clause:
+CREATE NONCLUSTERED INDEX idx_Orders_OrderStatus ON Sales.Orders(OrderStatus)
 
+-- Avoid applying functions to columns in WHERE clause:
+SELECT * FROM Sales.Orders 
+WHERE LOWER(OrderStatus) = 'delivered'
+-- whole index now useless
+-- 'LIKE' BETTER THAN 'SUBSTRING'
 
+--bad practise:
+WHERE YEAR(OrderDate) = 2025
+--good practise:
+WHERE OrderDate BETWEEN '2025-01-01' AND '2025-12-31'
 
+-- IN() has better performance than OR
 
+--ANSI join better than non-ANSI join:
+--ANSI:
+SELECT o.OrderID, c.firstName
+FROM Sales.CUstomers c
+INNER JOIN Sales.Orders o
+ON c.CustomerID = o.CustomerID
 
+--non-ANSI:
+SELECT o.OrderID, c.firstName
+FROM Sales.CUstomers c, Sales.Orders o
+WHERE c.CustomerID = o.CustomerID
 
+--works slower if one has index and the other doesnt
+WHERE c.CustomerID = o.CustomerID
 
+--dont use OR, rather 2 select queries with an UNION
+INNER JOIN ..
+ON c.CustomerID = o.CustomerID
+OR c.CustomerID = s.SalesPersonID
 
+--if u joinING one big table and one small, at the end add:
+OPTION(HASH JOIN)
 
+--dont use UNION, rather use 1 query with DISTINCT and subquery with UNION ALL
 
+--use columnstore index for aggregations on large tables
 
+--bad, use join or even exist
+WHERE o.CustomerID IN (SELECT...)
 
+--TEXT IS worse than VARCHAR
 
+--bolje da v DDL daš NOT NULL kakor da preverjaš z DML
 
+--every table should have a clustered primary key
+PRIMARY KEY CLUSTERED
 
+-- Create non-clustered index for foregin keys that are used frequently
 
-
-
-
-
-
-
-
-
-
-
+--weekly update statisticcs and reorganize/rebuild indexes
+--drop unused indexes, avoid over-indexing
 
